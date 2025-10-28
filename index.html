@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>大凉国雅言语言输入法 - 造字系统</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { background:#0b0c2a; color:#fff; font-family:"Microsoft YaHei"; text-align:center; margin:0; padding:20px; }
+    h2 { margin-bottom:10px; }
+    #keyboard { display:flex; flex-wrap:wrap; justify-content:center; margin-top:20px; }
+    .char-btn {
+      background:#f0c000; color:#000; border:none; border-radius:8px;
+      padding:12px; margin:6px; font-size:18px; min-width:60px; cursor:pointer;
+      box-shadow:0 0 8px #f0c00066; transition:transform 0.1s ease;
+    }
+    .char-btn:hover { transform:scale(1.05); }
+    #inputBox { margin-top:20px; padding:10px; width:90%; font-size:16px; border-radius:8px; border:none; }
+    #backBtn { margin-top:20px; padding:8px 14px; background:#007bff; color:#fff; border:none; border-radius:6px; }
+    canvas { background:#111; border:1px solid #f0c000; border-radius:6px; margin-top:20px; }
+  </style>
+</head>
+<body>
+  <h2>🌠 大凉国雅言语言输入法</h2>
+  <p>在下面绘制字符并保存，可以随意输入字符，显示对应的字形。</p>
+
+  <!-- 输入框 -->
+  <input type="text" id="inputBox" placeholder="开始输入..." />
+
+  <!-- 绘制区域 -->
+  <canvas id="canvas" width="400" height="400"></canvas>
+
+  <!-- 按键区 -->
+  <div id="keyboard"></div>
+  
+  <!-- 按钮 -->
+  <button id="saveBtn">保存字符</button>
+  <button id="loadBtn">加载字符</button>
+  <button id="backBtn" onclick="window.location.href='#'">返回首页</button>
+
+  <script>
+    // 初始化
+    const chars = JSON.parse(localStorage.getItem("stargate_chars")) || { chars: [] };
+    let currentStrokes = [];
+    let canvas = document.getElementById("canvas");
+    let ctx = canvas.getContext("2d");
+
+    // 初始化画布
+    function initCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "#f0c000";
+      ctx.lineWidth = 2;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+    }
+
+    initCanvas();
+
+    let drawing = false;
+    let lastX = 0, lastY = 0;
+
+    // 开始绘制
+    canvas.addEventListener('mousedown', function(e) {
+      drawing = true;
+      [lastX, lastY] = [e.offsetX, e.offsetY];
+    });
+
+    // 结束绘制
+    canvas.addEventListener('mouseup', function() {
+      drawing = false;
+      currentStrokes.push([]);
+    });
+
+    // 绘制笔画
+    canvas.addEventListener('mousemove', function(e) {
+      if (!drawing) return;
+      ctx.beginPath();
+      ctx.moveTo(lastX, lastY);
+      ctx.lineTo(e.offsetX, e.offsetY);
+      ctx.stroke();
+      lastX = e.offsetX;
+      lastY = e.offsetY;
+      currentStrokes[currentStrokes.length - 1].push({ x: e.offsetX, y: e.offsetY });
+    });
+
+    // 保存字符
+    document.getElementById("saveBtn").addEventListener('click', function() {
+      let charData = { strokes: currentStrokes };
+      let jsonData = JSON.stringify(charData, null, 2);
+      localStorage.setItem("currentChar", jsonData);
+      alert('字符已保存！');
+    });
+
+    // 加载字符
+    document.getElementById("loadBtn").addEventListener('click', function() {
+      let savedChar = localStorage.getItem("currentChar");
+      if (!savedChar) return alert('没有保存的字符！');
+      currentStrokes = JSON.parse(savedChar).strokes;
+      initCanvas();
+      currentStrokes.forEach(stroke => {
+        stroke.forEach(p => {
+          ctx.lineTo(p.x, p.y);
+        });
+      });
+    });
+
+    // 键盘按键展示
+    const inputBox = document.getElementById("inputBox");
+    const keyboard = document.getElementById("keyboard");
+
+    chars.chars.forEach(char => {
+      const button = document.createElement("button");
+      button.textContent = char.name;
+      button.classList.add("char-btn");
+      button.onclick = () => inputBox.value += char.name;
+      keyboard.appendChild(button);
+    });
+
+    // 监听输入框，动态显示字符
+    inputBox.addEventListener("input", () => {
+      const enteredText = inputBox.value;
+      let matchedChar = chars.chars.find(char => enteredText.endsWith(char.name));
+      if (matchedChar) {
+        renderChar(matchedChar.strokes, 400, 400, ctx);
+      }
+    });
+
+    // 绘制字符函数
+    function renderChar(strokes, width, height, ctx) {
+      if (!strokes || strokes.length === 0) {
+        ctx.clearRect(0, 0, width, height);
+        return;
+      }
+
+      let xs = [], ys = [];
+      strokes.forEach(stroke => stroke.forEach(p => { xs.push(p.x); ys.push(p.y); }));
+      const minX = Math.min(...xs), maxX = Math.max(...xs);
+      const minY = Math.min(...ys), maxY = Math.max(...ys);
+
+      const padding = 5; // 增加边距
+      const charWidth = maxX - minX;
+      const charHeight = maxY - minY;
+      const scale = Math.min((width - 2 * padding) / charWidth, (height - 2 * padding) / charHeight) * 0.9;
+
+      const offsetX = (width - charWidth * scale) / 2 - minX * scale;
+      const offsetY = (height - charHeight * scale) / 2 - minY * scale;
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.strokeStyle = "#f0c000";
+      ctx.lineWidth = 2;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+
+      strokes.forEach(stroke => {
+        if (stroke.length === 0) return;
+        ctx.beginPath();
+        ctx.moveTo(stroke[0].x * scale + offsetX, stroke[0].y * scale + offsetY);
+        for (let i = 1; i < stroke.length; i++) {
+          const prev = stroke[i - 1];
+          const curr = stroke[i];
+          const midX = (prev.x + curr.x) / 2;
+          const midY = (prev.y + curr.y) / 2;
+          ctx.quadraticCurveTo(prev.x * scale + offsetX, prev.y * scale + offsetY, midX * scale + offsetX, midY * scale + offsetY);
+        }
+        ctx.stroke();
+      });
+    }
+  </script>
+</body>
+</html>
